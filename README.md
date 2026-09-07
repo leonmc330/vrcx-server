@@ -112,6 +112,26 @@ Don't want the extra container? `docker compose up -d vrcx` starts only the serv
 the friend list still work, and reopening the page always shows current state, but live
 tracking then only runs while that page is open, same as the desktop app while it is running.
 
+### Duplicate feed entries a few seconds apart
+
+Running two live copies of VRCX at once - your tab, and the always-on engine tab - means both
+independently receive the same VRChat pipeline event and both decide, from their own
+in-memory state, that it is new. VRCX has no database constraint stopping a second write of
+the same thing (its feed tables have no unique index; `INSERT OR IGNORE` has nothing to
+ignore against normally, since only one copy is ever writing) - so both write it, a few
+seconds apart, matching whatever timing skew exists between the two pipeline connections.
+
+`src/feed-dedupe.js` fixes this at the one place both copies meet: the shared database.
+Before running one of VRCX's own feed inserts (`_feed_gps`, `_feed_status`, `_feed_bio`,
+`_feed_avatar`, `_feed_online_offline`, `_friend_log_history`), it checks for matching content
+written in the last 20 seconds and skips the insert if there is one. It never edits VRCX's SQL
+or schema - it reads the exact query VRCX already sent and decides whether to run it. Verified
+with VRCX's own INSERT statements against a real database (`tools/dedupe-test.js`), and
+through the actual HTTP path a browser tab uses, not just the function in isolation.
+
+A genuine repeat of the same event outside that window - going offline and coming back online
+five minutes later, say - is unaffected; only the multi-tab timing case is caught.
+
 ### A real bug this surfaced
 
 Reached by hostname or LAN IP over plain HTTP - the normal way to open a self-hosted page -
@@ -146,5 +166,7 @@ public/shim.js          injected into index.html, defines the Electron globals +
 Dockerfile               stage 1 builds VRCX's frontend, stage 2 runs the server
 engine/                  the always-on headless tab that keeps tracking alive
 docker-compose.yml       the stack: vrcx + vrcx-engine
+src/feed-dedupe.js       suppresses duplicate feed rows from running two live tabs
+tools/dedupe-test.js     tests it against VRCX's real INSERT statements
 /data                    VRCX.sqlite3, settings.json, cookies.json
 ```

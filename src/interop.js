@@ -19,6 +19,7 @@
 const fs = require("fs");
 const path = require("path");
 const { DatabaseSync } = require("node:sqlite");
+const { is_duplicate_feed_insert } = require("./feed-dedupe.js");
 
 const DATA_DIR = process.env.VRCX_DATA || "/data";
 const USER_AGENT = process.env.VRCX_USER_AGENT || "VRCX/2026.07.18 vrcx-web";
@@ -253,6 +254,12 @@ class Interop {
                 return rows.map((row) => Object.values(row));
             },
             ExecuteNonQuery: async (sql, args) => {
+                // Running two live copies of VRCX at once (a real tab, and the
+                // always-on engine tab) means both independently decide a
+                // pipeline event is "new" and both write it - see
+                // feed-dedupe.js for why this is checked here rather than in
+                // VRCX itself.
+                if (is_duplicate_feed_insert(db, sql, args)) return 0;
                 const statement = run(sql, args);
                 const result = args && Object.keys(args).length > 0 ? statement.run(args) : statement.run();
                 return Number(result.changes);
