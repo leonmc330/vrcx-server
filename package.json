@@ -1,0 +1,11 @@
+{
+    "name": "vrcx-web",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Serves VRCX's frontend as a web page, with a Node implementation of its backend",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js"
+    },
+    "license": "MIT"
+}

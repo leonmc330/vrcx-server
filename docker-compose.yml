@@ -1,0 +1,42 @@
+name: vrcx
+
+# VRCX served as a web page. Open http://<host>:8080 and log in to VRChat
+# through the normal VRCX login screen; the session lives on the volume.
+
+services:
+    vrcx:
+        image: ghcr.io/leonmc330/vrcx-server:latest
+        container_name: vrcx
+        restart: unless-stopped
+
+        environment:
+            TZ: Europe/Paris
+
+        ports:
+            - "8080:8080"
+
+        # VRCX.sqlite3, settings.json and the login cookies
+        volumes:
+            - vrcx-data:/data
+
+        stop_grace_period: 15s
+
+        healthcheck:
+            test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
+            interval: 30s
+            timeout: 5s
+            start_period: 15s
+            retries: 3
+
+        logging:
+            driver: json-file
+            options:
+                max-size: "10m"
+                max-file: "3"
+
+        security_opt:
+            - no-new-privileges:true
+
+volumes:
+    vrcx-data:
+        name: vrcx_vrcx-data

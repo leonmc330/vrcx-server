@@ -1,0 +1,5 @@
+node_modules/
+html/
+data/
+*.sqlite3
+cookies.json
