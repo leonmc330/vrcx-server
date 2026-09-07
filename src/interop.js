@@ -326,7 +326,21 @@ class Interop {
         return { GetAssetId: async () => "", GetVersion: async () => "" };
     }
 
-    /* ---------------------------------------------------------------- AppApi */
+    /* ---------------------------------------------------------------- AppApi
+       The frontend does not call the class "AppApi" directly: on Linux/Electron
+       it aliases window.AppApi = InteropApi.AppApiElectron (src/plugins/interopApi.js),
+       so callDotNetMethod always sends className "AppApiElectron". Missing this
+       alias meant every one of these calls failed with "Unknown class
+       AppApiElectron" - which is nearly the whole desktop-integration surface,
+       including SetUserAgent, CurrentLanguage and ChangeTheme on every load. */
+    get AppApiElectron() {
+        return this.AppApi;
+    }
+
+    get AppApiVrElectron() {
+        return this.AppApi;
+    }
+
     get AppApi() {
         const self = this;
         return {

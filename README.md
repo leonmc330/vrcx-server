@@ -70,6 +70,35 @@ Not working, by definition of running on a server with no VRChat client:
 
 Everything else is real VRCX talking to the real VRChat API.
 
+## Known issue, fixed
+
+VRCX's frontend does not call the backend class named `AppApi`. On Linux/Electron it aliases
+`window.AppApi = InteropApi.AppApiElectron` (`src/plugins/interopApi.js` in VRCX), so every
+call - `SetUserAgent`, `ChangeTheme`, `CurrentLanguage`, `GetVersion` and the rest - actually
+goes out as class `AppApiElectron`. The first build of this shim only registered `AppApi`,
+so every one of those calls failed on every single page load. Fixed by aliasing
+`AppApiElectron` (and `AppApiVrElectron`) to the same implementation in `src/interop.js`.
+
+## Login persistence, and why the friend list stops when every tab is closed
+
+The login is not stored in the browser. VRCX writes your saved credentials and cookies to
+`VRCXStorage`, which this project backs with a file on `/data` - server-side, not per-tab. So
+closing the tab and opening a new one, or opening the page on a different device, resumes
+your session automatically; there is nothing to log back into.
+
+What does not carry across a closed tab is the **live connection**. VRCX's real-time
+friend/location updates come from a WebSocket the frontend opens directly from the browser to
+`wss://pipeline.vrchat.cloud` (`src/services/websocket.js` in VRCX) - that is JavaScript
+running in your tab, not something this server does on your behalf. Closing the tab ends that
+connection the same way quitting the desktop app would. Reopening the page reconnects
+immediately using the stored session and pulls fresh state; it is not a live feed while no
+tab is open.
+
+Making the friend list update in the background with every tab closed would mean building a
+second engine that holds that pipeline connection server-side and pushes updates to any open
+tab - the same shape DSCX already uses for Discord. That is a real, separate project, not a
+one-line fix; ask if you want it built.
+
 ## Upgrading VRCX
 
 The frontend version is pinned in the Dockerfile:
