@@ -79,25 +79,50 @@ goes out as class `AppApiElectron`. The first build of this shim only registered
 so every one of those calls failed on every single page load. Fixed by aliasing
 `AppApiElectron` (and `AppApiVrElectron`) to the same implementation in `src/interop.js`.
 
-## Login persistence, and why the friend list stops when every tab is closed
+## Login persistence, and staying logged in with every tab closed
 
 The login is not stored in the browser. VRCX writes your saved credentials and cookies to
 `VRCXStorage`, which this project backs with a file on `/data` - server-side, not per-tab. So
 closing the tab and opening a new one, or opening the page on a different device, resumes
 your session automatically; there is nothing to log back into.
 
-What does not carry across a closed tab is the **live connection**. VRCX's real-time
-friend/location updates come from a WebSocket the frontend opens directly from the browser to
-`wss://pipeline.vrchat.cloud` (`src/services/websocket.js` in VRCX) - that is JavaScript
-running in your tab, not something this server does on your behalf. Closing the tab ends that
-connection the same way quitting the desktop app would. Reopening the page reconnects
-immediately using the stored session and pulls fresh state; it is not a live feed while no
-tab is open.
+What does not normally carry across a closed tab is the **live connection**: VRCX's real-time
+friend/location feed is a WebSocket the frontend opens directly from the browser to
+`wss://pipeline.vrchat.cloud` (`src/services/websocket.js` in VRCX). That is JavaScript
+running in your tab, not something a server can do on your behalf by itself - closing the tab
+ends that connection the same way quitting the desktop app would.
 
-Making the friend list update in the background with every tab closed would mean building a
-second engine that holds that pipeline connection server-side and pushes updates to any open
-tab - the same shape DSCX already uses for Discord. That is a real, separate project, not a
-one-line fix; ask if you want it built.
+### The engine service
+
+`docker-compose.yml` includes a second container, `vrcx-engine`, that solves this without
+reimplementing VRCX's pipeline handling from scratch (which would mean guessing at business
+logic that lives in its Vue stores - friend online/offline, location changes, feed entries -
+and risking getting it subtly wrong). Instead it keeps a **second, invisible copy of the
+exact same frontend** open in a headless browser, permanently, pointed at the `vrcx` container
+over the internal Docker network. It is the real app doing the real work - same code, same
+pipeline handling, same database writes.
+
+A browser tab you open yourself is then just another view onto state that is already being
+tracked. Closing it changes nothing; the engine's tab was never affected by it. VRChat
+supports multiple concurrent sessions per account (desktop, web and mobile logged in
+simultaneously is normal), so the engine's tab and any tab you open coexist without conflict,
+and every write from either lands in the same server-side database.
+
+Don't want the extra container? `docker compose up -d vrcx` starts only the server: login and
+the friend list still work, and reopening the page always shows current state, but live
+tracking then only runs while that page is open, same as the desktop app while it is running.
+
+### A real bug this surfaced
+
+Reached by hostname or LAN IP over plain HTTP - the normal way to open a self-hosted page -
+Chrome does not consider the page a secure context (only HTTPS, or plain HTTP on exactly
+`localhost`/`127.0.0.1`, count). `crypto.randomUUID()` requires one and VRCX calls it
+unguarded once (`stores/vrcxUpdater.js`, a first-run install id), throwing on every load. This
+was caught by actually running the built image in headless Chromium rather than assuming
+success, and is fixed in `public/shim.js` with a `crypto.getRandomValues`-based polyfill,
+which needs no secure context. `crypto.subtle` (used only by the optional Primary Password
+local-encryption feature) has no such polyfill and genuinely requires HTTPS; that one feature
+will not work without it.
 
 ## Upgrading VRCX
 
@@ -115,10 +140,11 @@ logs after an upgrade.
 ## Layout
 
 ```
-server.js             HTTP server, static frontend, /interop dispatch
-src/interop.js        the backend: WebApi, SQLite, VRCXStorage, AppApi, stubs
-public/shim.js        injected into index.html, defines the Electron globals
-Dockerfile            stage 1 builds VRCX's frontend, stage 2 runs the server
-docker-compose.yml    the stack
-/data                 VRCX.sqlite3, settings.json, cookies.json
+server.js               HTTP server, static frontend, /interop dispatch
+src/interop.js          the backend: WebApi, SQLite, VRCXStorage, AppApi, stubs
+public/shim.js          injected into index.html, defines the Electron globals + crypto polyfill
+Dockerfile               stage 1 builds VRCX's frontend, stage 2 runs the server
+engine/                  the always-on headless tab that keeps tracking alive
+docker-compose.yml       the stack: vrcx + vrcx-engine
+/data                    VRCX.sqlite3, settings.json, cookies.json
 ```

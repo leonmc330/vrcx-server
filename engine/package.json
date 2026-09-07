@@ -1,0 +1,10 @@
+{
+    "name": "vrcx-engine",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Keeps a headless copy of the real VRCX frontend permanently open, so friend/location tracking keeps running with no browser tab open",
+    "main": "engine.js",
+    "dependencies": {
+        "puppeteer-core": "^23.0.0"
+    }
+}
