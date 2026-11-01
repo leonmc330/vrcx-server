@@ -278,7 +278,7 @@ class MariaDBClient {
             const msg = String(e.message || e);
             if (/ALTER\s+TABLE/i.test(text) && /\bADD\b/i.test(text) && /duplicate/i.test(msg)) return 0;
             if (/ALTER\s+TABLE/i.test(text) && /\bDROP\b/i.test(text) &&
-                (/doesn.t exist/i.test(msg) || /unknown column/i.test(msg) || /no such column/i.test(msg))) return 0;
+                (/doesn.t exist/i.test(msg) || /unknown column/i.test(msg) || /no such column/i.test(msg) || /exists/i.test(msg))) return 0;
             console.error(`MariaDB run failed: ${msg}\nSQL: ${text}`);
             throw e;
         } finally {
