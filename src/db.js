@@ -89,6 +89,7 @@ function translateSqlForMariaDB(sql) {
     // quote reserved-ish identifiers used by VRCX's config store
     s = s.replace(/(?<!PRIMARY )(?<!FOREIGN )(?<!UNIQUE )(?<!`)(?<!@)\bkey\b(?!`)/gi, "`key`");
     s = s.replace(/(?<!`)(?<!@)\bvalue\b(?!`)/gi, "`value`");
+    s = s.replace(/IN\s*\(\s*\)/gi, "IN (NULL)");
     s = s.replace(/INSERT\s+OR\s+IGNORE/gi, "INSERT IGNORE");
     s = s.replace(/INSERT\s+OR\s+REPLACE/gi, "REPLACE");
     s = s.replace(/datetime\s*\(\s*'now'\s*,\s*([^)]+)\)/gi, "vrcx_datetime_now($1)");
@@ -189,11 +190,11 @@ class MariaDBClient {
         try {
             await conn.query("SET SESSION sql_mode = CONCAT(@@sql_mode, ',PIPES_AS_CONCAT')");
             try {
-                await conn.query(`CREATE OR REPLACE VIEW sqlite_schema AS
-                    SELECT 'table' AS type, TABLE_NAME AS name, TABLE_NAME AS tbl_name,
-                           0 AS rootpage, NULL AS `sql`
-                    FROM information_schema.tables
-                    WHERE TABLE_SCHEMA = DATABASE()`);
+                await conn.query("CREATE OR REPLACE VIEW sqlite_schema AS " +
+                    "SELECT 'table' AS type, TABLE_NAME AS name, TABLE_NAME AS tbl_name, " +
+                    "0 AS rootpage, NULL AS `sql` " +
+                    "FROM information_schema.tables " +
+                    "WHERE TABLE_SCHEMA = DATABASE()");
             } catch (e) {
                 console.error(`MariaDB view warning: ${e.message}`);
             }
@@ -237,11 +238,11 @@ class MariaDBClient {
         try {
             await conn.query("SET SESSION sql_mode = CONCAT(@@sql_mode, ',PIPES_AS_CONCAT')");
             try {
-                await conn.query(`CREATE OR REPLACE VIEW sqlite_schema AS
-                    SELECT 'table' AS type, TABLE_NAME AS name, TABLE_NAME AS tbl_name,
-                           0 AS rootpage, NULL AS `sql`
-                    FROM information_schema.tables
-                    WHERE TABLE_SCHEMA = DATABASE()`);
+                await conn.query("CREATE OR REPLACE VIEW sqlite_schema AS " +
+                    "SELECT 'table' AS type, TABLE_NAME AS name, TABLE_NAME AS tbl_name, " +
+                    "0 AS rootpage, NULL AS `sql` " +
+                    "FROM information_schema.tables " +
+                    "WHERE TABLE_SCHEMA = DATABASE()");
             } catch (e) {
                 console.error(`MariaDB view warning: ${e.message}`);
             }
@@ -263,11 +264,11 @@ class MariaDBClient {
         try {
             await conn.query("SET SESSION sql_mode = CONCAT(@@sql_mode, ',PIPES_AS_CONCAT')");
             try {
-                await conn.query(`CREATE OR REPLACE VIEW sqlite_schema AS
-                    SELECT 'table' AS type, TABLE_NAME AS name, TABLE_NAME AS tbl_name,
-                           0 AS rootpage, NULL AS `sql`
-                    FROM information_schema.tables
-                    WHERE TABLE_SCHEMA = DATABASE()`);
+                await conn.query("CREATE OR REPLACE VIEW sqlite_schema AS " +
+                    "SELECT 'table' AS type, TABLE_NAME AS name, TABLE_NAME AS tbl_name, " +
+                    "0 AS rootpage, NULL AS `sql` " +
+                    "FROM information_schema.tables " +
+                    "WHERE TABLE_SCHEMA = DATABASE()");
             } catch (e) {
                 console.error(`MariaDB view warning: ${e.message}`);
             }
