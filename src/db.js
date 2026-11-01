@@ -65,7 +65,16 @@ function translateSqlForMariaDB(sql) {
     if (/^\s*(PRAGMA|VACUUM)\b/i.test(s)) isNoOp = true;
     s = s.replace(/INTEGER\s+PRIMARY\s+KEY\s+AUTOINCREMENT/gi, "INT PRIMARY KEY AUTO_INCREMENT");
     s = s.replace(/\bINTEGER\s+PRIMARY\s+KEY\b/gi, "INT PRIMARY KEY AUTO_INCREMENT");
-    // TEXT columns become VARCHAR(255) for identifiers/short fields, LONGTEXT otherwise
+    // TEXT columns (quoted or unquoted) become VARCHAR(255), LONGTEXT for long content
+    s = s.replace(/`([A-Za-z_]\w*)`\s+TEXT\b/gi, (match, col) => {
+        const c = col.toLowerCase();
+        if (c.includes("description") || c.includes("memo") || c.includes("bio") ||
+            c.includes("message") || c.includes("json") || c.includes("url") ||
+            c.includes("data") || c === "note" || c.includes("title") || c.includes("content")) {
+            return "`" + col + "` LONGTEXT";
+        }
+        return "`" + col + "` VARCHAR(255)";
+    });
     s = s.replace(/\b([A-Za-z_]\w*)\s+TEXT\b/gi, (match, col) => {
         const c = col.toLowerCase();
         if (c.includes("description") || c.includes("memo") || c.includes("bio") ||
