@@ -136,6 +136,10 @@
         restartApp: async () => window.location.reload(),
         getOverlayWindow: async () => null,
         updateVr: async () => {},
+        onBrowserBlur: () => {},
+        onBrowserFocus: () => () => {},
+        setThemeSource: async () => {},
+        onSystemThemeChanged: () => () => {},
         ipcRenderer: { on: () => undefined },
     };
 
