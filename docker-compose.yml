@@ -1,46 +1,60 @@
 name: vrcx
 
-# VRCX served as a web page. Open http://<host>:8080 and log in to VRChat
-# through the normal VRCX login screen; the session lives on the volume.
-#
-# The "engine" service keeps a headless copy of VRCX's own frontend open
-# permanently, so friend/location tracking keeps running with no browser tab
-# open - it is the real app doing the real work, just not the tab you look at.
-# Comment it out (or `docker compose up -d vrcx`) to run without it: login and
-# the friend list still work, but live tracking then only runs while you have
-# the page open, same as the desktop app while it is running.
-
 services:
+    mariadb:
+        image: mariadb:11
+        container_name: vrcx-mariadb
+        restart: unless-stopped
+        environment:
+            TZ: Europe/Paris
+            MYSQL_DATABASE: vrcx
+            MYSQL_USER: vrcx
+            MYSQL_PASSWORD: vrcx
+            MYSQL_ROOT_PASSWORD: root
+        volumes:
+            - vrcx-mariadb:/var/lib/mysql
+        healthcheck:
+            test: ["CMD", "mariadb", "-uvrcx", "-pvrcx", "-e", "SELECT 1"]
+            interval: 10s
+            timeout: 5s
+            retries: 10
+        logging:
+            driver: json-file
+            options:
+                max-size: "10m"
+                max-file: "3"
+        security_opt:
+            - no-new-privileges:true
+
     vrcx:
         image: ghcr.io/leonmc330/vrcx-server:latest
         container_name: vrcx
         restart: unless-stopped
-
         environment:
             TZ: Europe/Paris
-
+            MARIADB_HOST: mariadb
+            MARIADB_USER: vrcx
+            MARIADB_PASSWORD: vrcx
+            MARIADB_DATABASE: vrcx
+        depends_on:
+            mariadb:
+                condition: service_healthy
         ports:
             - "8080:8080"
-
-        # VRCX.sqlite3, settings.json and the login cookies
         volumes:
             - vrcx-data:/data
-
         stop_grace_period: 15s
-
         healthcheck:
             test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
             interval: 30s
             timeout: 5s
             start_period: 15s
             retries: 3
-
         logging:
             driver: json-file
             options:
                 max-size: "10m"
                 max-file: "3"
-
         security_opt:
             - no-new-privileges:true
 
@@ -48,29 +62,24 @@ services:
         image: ghcr.io/leonmc330/vrcx-server-engine:latest
         container_name: vrcx-engine
         restart: unless-stopped
-
         environment:
             TZ: Europe/Paris
             VRCX_URL: http://vrcx:8080/
-
         depends_on:
             vrcx:
                 condition: service_healthy
-
-        # Chromium needs real shared memory, not the default 64MB
         shm_size: "1gb"
-
         stop_grace_period: 10s
-
         logging:
             driver: json-file
             options:
                 max-size: "10m"
                 max-file: "3"
-
         security_opt:
             - no-new-privileges:true
 
 volumes:
     vrcx-data:
         name: vrcx_vrcx-data
+    vrcx-mariadb:
+        name: vrcx_mariadb-data

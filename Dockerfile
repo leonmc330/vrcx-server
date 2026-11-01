@@ -8,10 +8,12 @@
 # backend calls it makes: the VRChat API with a cookie jar, SQLite, settings.
 
 FROM node:24-alpine AS frontend
-ARG VRCX_REF=v2026.07.18
+ARG VRCX_REF=master
 RUN apk add --no-cache git
 WORKDIR /build
 RUN git clone --depth 1 --branch ${VRCX_REF} https://github.com/vrcx-team/VRCX.git .
+COPY patches ./patches
+RUN for p in ./patches/*.patch; do [ -f "$p" ] || continue; git apply "$p"; done
 RUN npm ci --no-audit --no-fund
 # Writes to /build/build/html, per src/vite.config.js
 RUN npx vite build src
@@ -26,6 +28,8 @@ COPY --from=frontend /build/build/html ./html
 COPY server.js ./
 COPY src ./src
 COPY public ./public
+COPY package.json ./
+RUN npm install --omit=dev --no-audit --no-fund
 
 RUN mkdir -p /data && chown -R node:node /data /app
 VOLUME ["/data"]

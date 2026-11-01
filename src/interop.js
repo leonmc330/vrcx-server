@@ -18,7 +18,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { DatabaseSync } = require("node:sqlite");
+const { loadConfig, saveConfig, createClient, importSqliteToClient } = require("./db.js");
 const { is_duplicate_feed_insert } = require("./feed-dedupe.js");
 
 const DATA_DIR = process.env.VRCX_DATA || "/data";
@@ -121,8 +121,8 @@ class Interop {
         this.jar = new CookieJar(path.join(dataDir, "cookies.json"));
         this.userAgent = USER_AGENT;
 
-        this.db = new DatabaseSync(path.join(dataDir, "VRCX.sqlite3"));
-        this.db.exec("PRAGMA journal_mode = WAL");
+        this.dbConfig = loadConfig(dataDir);
+        this.db = createClient(this.dbConfig, dataDir);
 
         this.settingsFile = path.join(dataDir, "settings.json");
         this.settings = {};
@@ -228,41 +228,24 @@ class Interop {
 
     /* ---------------------------------------------------------------- SQLite */
     get SQLite() {
-        const db = this.db;
-        /**
-         * node:sqlite takes named parameters as an object. VRCX writes them as
-         * @name in the SQL, so bare names are allowed here.
-         */
-        const run = (sql, args) => {
-            const statement = db.prepare(sql);
-            if (args && Object.keys(args).length > 0) {
-                statement.setAllowBareNamedParameters(true);
-                return statement;
-            }
-            return statement;
-        };
+        const self = this;
+        const client = () => self.db;
         return {
             ExecuteJson: async (sql, args) => {
-                const statement = run(sql, args);
-                const rows = args && Object.keys(args).length > 0 ? statement.all(args) : statement.all();
-                // The frontend reads rows positionally, as the C# layer returns them
-                return JSON.stringify(rows.map((row) => Object.values(row)));
+                const rows = await client().all(sql, args);
+                return JSON.stringify(rows.map((row) => (Array.isArray(row) ? row : Object.values(row))));
             },
             Execute: async (sql, args) => {
-                const statement = run(sql, args);
-                const rows = args && Object.keys(args).length > 0 ? statement.all(args) : statement.all();
-                return rows.map((row) => Object.values(row));
+                const rows = await client().all(sql, args);
+                return rows.map((row) => (Array.isArray(row) ? row : Object.values(row)));
             },
             ExecuteNonQuery: async (sql, args) => {
-                // Running two live copies of VRCX at once (a real tab, and the
-                // always-on engine tab) means both independently decide a
-                // pipeline event is "new" and both write it - see
-                // feed-dedupe.js for why this is checked here rather than in
-                // VRCX itself.
-                if (is_duplicate_feed_insert(db, sql, args)) return 0;
-                const statement = run(sql, args);
-                const result = args && Object.keys(args).length > 0 ? statement.run(args) : statement.run();
-                return Number(result.changes);
+                const argObj = args instanceof Map ? Object.fromEntries(args) : (args || {});
+                try {
+                    if (await is_duplicate_feed_insert(client(), sql, argObj)) return 0;
+                } catch (e) { /* deduction of duplicates must never break writes */ }
+                const result = await client().run(sql, argObj);
+                return Number(result);
             },
         };
     }
@@ -369,6 +352,31 @@ class Interop {
             GetColourBulk: async () => ({}),
             PopulateImageHosts: async () => {},
             GetImage: async () => "",
+            GetMariaDBConfig: async () => JSON.stringify(loadConfig(self.dataDir)),
+            SetMariaDBConfig: async (value) => {
+                let parsed = value;
+                try { parsed = typeof value === "string" ? JSON.parse(value) : value; } catch (e) { return false; }
+                saveConfig(self.dataDir, parsed);
+                try { self.db.close(); } catch (e) { /* ignore */ }
+                self.db = createClient(parsed, self.dataDir);
+                return true;
+            },
+            ImportSqliteDatabase: async (value) => {
+                let parsed = value;
+                try { parsed = typeof value === "string" ? JSON.parse(value) : value; } catch (e) { return JSON.stringify({ error: String(e.message || e) }); }
+                if (!parsed || !parsed.data) return JSON.stringify({ error: "missing data" });
+                const os = require("os");
+                const tmp = path.join(os.tmpdir(), `import-${Date.now()}.sqlite3`);
+                try {
+                    fs.writeFileSync(tmp, Buffer.from(parsed.data, "base64"));
+                    const result = await importSqliteToClient(tmp, self.db);
+                    return JSON.stringify({ ok: true, ...result });
+                } catch (e) {
+                    return JSON.stringify({ error: String(e.message || e) });
+                } finally {
+                    try { fs.unlinkSync(tmp); } catch (e2) { /* ignore */ }
+                }
+            },
 
             // Anything to do with a running game, a headset, the registry, the
             // filesystem or the updater is false or empty by definition here

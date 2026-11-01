@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>vrcx-server admin</title>
+<style>
+body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 760px; }
+section { margin: 1.5rem 0; padding: 1rem; border: 1px solid #ccc; border-radius: 8px; }
+input { margin: .25rem 0; width: 100%; box-sizing: border-box; }
+button { padding: .5rem 1rem; margin-top: .5rem; }
+pre { background: #f4f4f4; padding: .75rem; white-space: pre-wrap; word-break: break-word; }
+label { font-weight: 600; display: block; margin-top: .5rem; }
+</style>
+</head>
+<body>
+<h1>vrcx-server admin</h1>
+
+<section>
+<h2>MariaDB server</h2>
+<label>Engine</label><input id="engine" value="mariadb" />
+<label>Host</label><input id="host" />
+<label>Port</label><input id="port" />
+<label>User</label><input id="user" />
+<label>Password</label><input id="password" type="password" />
+<label>Database</label><input id="database" />
+<button id="saveDb">Save and reconnect</button>
+<pre id="dbStatus"></pre>
+</section>
+
+<section>
+<h2>Import old SQLite database</h2>
+<p>Upload a VRCX.sqlite3 file. It will be translated and copied into the configured MariaDB database.</p>
+<input type="file" id="sqliteFile" accept=".sqlite3,.db" />
+<button id="importBtn">Import</button>
+<pre id="importStatus"></pre>
+</section>
+
+<script>
+async function loadConfig() {
+    const response = await fetch('/db/config');
+    const config = await response.json();
+    const m = config.mariadb || {};
+    document.getElementById('engine').value = config.engine || 'mariadb';
+    document.getElementById('host').value = m.host || '';
+    document.getElementById('port').value = m.port || '';
+    document.getElementById('user').value = m.user || '';
+    document.getElementById('password').value = m.password || '';
+    document.getElementById('database').value = m.database || '';
+    document.getElementById('dbStatus').textContent = JSON.stringify(config, null, 2);
+}
+loadConfig().catch(e => { document.getElementById('dbStatus').textContent = String(e); });
+
+document.getElementById('saveDb').addEventListener('click', async () => {
+    const body = {
+        engine: document.getElementById('engine').value,
+        mariadb: {
+            host: document.getElementById('host').value,
+            port: Number(document.getElementById('port').value || 3306),
+            user: document.getElementById('user').value,
+            password: document.getElementById('password').value,
+            database: document.getElementById('database').value
+        }
+    };
+    try {
+        const response = await fetch('/db/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await response.json();
+        document.getElementById('dbStatus').textContent = JSON.stringify(data, null, 2);
+    } catch (e) {
+        document.getElementById('dbStatus').textContent = String(e);
+    }
+});
+
+document.getElementById('importBtn').addEventListener('click', async () => {
+    const file = document.getElementById('sqliteFile').files[0];
+    if (!file) { document.getElementById('importStatus').textContent = 'Choose a file first'; return; }
+    const reader = new FileReader();
+    reader.onload = async () => {
+        const base64 = String(reader.result).split(',')[1];
+        document.getElementById('importStatus').textContent = 'Importing...';
+        try {
+            const response = await fetch('/db/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filename: file.name, data: base64 }) });
+            const data = await response.json();
+            document.getElementById('importStatus').textContent = JSON.stringify(data, null, 2);
+        } catch (e) {
+            document.getElementById('importStatus').textContent = String(e);
+        }
+    };
+    reader.readAsDataURL(file);
+});
+</script>
+</body>
+</html>

@@ -14,6 +14,8 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { Interop } = require("./src/interop.js");
+const { loadConfig, saveConfig, createClient, importSqliteToClient } = require("./src/db.js");
+const os = require("os");
 
 const HTML_DIR = process.env.VRCX_HTML || path.join(__dirname, "html");
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -139,6 +141,52 @@ const server = http.createServer(async (request, response) => {
         if (route === "/healthz") {
             response.writeHead(200, { "Content-Type": "text/plain" });
             return response.end("ok");
+        }
+
+        if (route === "/db/config" && request.method === "GET") {
+            const payload = JSON.stringify(loadConfig(interop.dataDir));
+            response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(payload) });
+            return response.end(payload);
+        }
+
+        if (route === "/db/config" && request.method === "POST") {
+            const body = await read_body(request);
+            const cfg = body && Object.keys(body).length ? body : loadConfig(interop.dataDir);
+            // keep engine stable unless provided
+            if (!cfg.engine) cfg.engine = (process.env.DB_ENGINE || "mariadb").toLowerCase();
+            saveConfig(interop.dataDir, cfg);
+            try { interop.db.close(); } catch (e) { /* ignore */ }
+            interop.db = createClient(cfg, interop.dataDir);
+            const payload = JSON.stringify({ ok: true, config: loadConfig(interop.dataDir) });
+            response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(payload) });
+            return response.end(payload);
+        }
+
+        if (route === "/db/import" && request.method === "POST") {
+            const body = await read_body(request);
+            if (!body || !body.data) {
+                response.writeHead(400, { "Content-Type": "application/json" });
+                return response.end(JSON.stringify({ error: "missing data (base64 sqlite file)" }));
+            }
+            const tmp = path.join(os.tmpdir(), `import-${Date.now()}.sqlite3`);
+            try {
+                fs.writeFileSync(tmp, Buffer.from(body.data, "base64"));
+                const result = await importSqliteToClient(tmp, interop.db);
+                response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+                return response.end(JSON.stringify({ ok: true, ...result }));
+            } catch (e) {
+                response.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
+                return response.end(JSON.stringify({ error: String(e.message || e) }));
+            } finally {
+                try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ }
+            }
+        }
+
+        if (route === "/admin" || route === "/admin.html") {
+            if (send_file(PUBLIC_DIR, "admin.html", response)) return;
+            // fallback simple page
+            response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+            return response.end("<html><body><p>admin page missing</p></body></html>");
         }
 
         if (route === "/__shim.js") {

@@ -44,6 +44,8 @@ jobs:
               with:
                   context: .
                   push: true
+                  build-args: |
+                      VRCX_REF=master
                   tags: ${{ steps.meta.outputs.tags }}
                   labels: ${{ steps.meta.outputs.labels }}
                   cache-from: type=gha

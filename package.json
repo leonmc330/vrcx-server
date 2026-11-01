@@ -7,5 +7,8 @@
     "scripts": {
         "start": "node server.js"
     },
-    "license": "MIT"
+    "license": "MIT",
+    "dependencies": {
+        "mysql2": "^3.24.6"
+    }
 }
