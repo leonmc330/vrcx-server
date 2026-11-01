@@ -89,8 +89,15 @@ async function launch() {
     });
     page = await browser.newPage();
 
-    page.on("console", (message) => {
-        if (message.type() === "error") console.error(`[${stamp()}] page: ${message.text().slice(0, 300)}`);
+    page.on("console", async (message) => {
+        if (message.type() === "error") {
+            let text = message.text();
+            try {
+                const args = await Promise.all(message.args().map((arg) => arg.jsonValue().catch(() => String(arg))));
+                if (args.length > 0) text = args.map((value) => (typeof value === "object" ? JSON.stringify(value) : String(value))).join(" ");
+            } catch (e) { /* use text */ }
+            console.error(`[${stamp()}] page: ${text.slice(0, 500)}`);
+        }
     });
     page.on("pageerror", (error) => console.error(`[${stamp()}] page error: ${String(error).slice(0, 300)}`));
     page.on("close", () => {
