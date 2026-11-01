@@ -87,8 +87,8 @@ function translateSqlForMariaDB(sql) {
     s = s.replace(/PRIMARY KEY \(user_id, target_user_id, range_days, view_kind, exclude_key\)/gi,
         "PRIMARY KEY (user_id(64), target_user_id(64), range_days, view_kind(64), exclude_key(64))");
     // quote reserved-ish identifiers used by VRCX's config store
-    s = s.replace(/(?<!PRIMARY )(?<!FOREIGN )(?<!UNIQUE )(?<!`)\bkey\b(?!`)/gi, "`key`");
-    s = s.replace(/(?<!`)\bvalue\b(?!`)/gi, "`value`");
+    s = s.replace(/(?<!PRIMARY )(?<!FOREIGN )(?<!UNIQUE )(?<!`)(?<!@)\bkey\b(?!`)/gi, "`key`");
+    s = s.replace(/(?<!`)(?<!@)\bvalue\b(?!`)/gi, "`value`");
     s = s.replace(/INSERT\s+OR\s+IGNORE/gi, "INSERT IGNORE");
     s = s.replace(/INSERT\s+OR\s+REPLACE/gi, "REPLACE");
     s = s.replace(/datetime\s*\(\s*'now'\s*,\s*([^)]+)\)/gi, "vrcx_datetime_now($1)");
