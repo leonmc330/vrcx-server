@@ -188,6 +188,15 @@ class MariaDBClient {
         const conn = await this.pool.getConnection();
         try {
             await conn.query("SET SESSION sql_mode = CONCAT(@@sql_mode, ',PIPES_AS_CONCAT')");
+            try {
+                await conn.query(`CREATE OR REPLACE VIEW sqlite_schema AS
+                    SELECT 'table' AS type, TABLE_NAME AS name, TABLE_NAME AS tbl_name,
+                           0 AS rootpage, NULL AS `sql`
+                    FROM information_schema.tables
+                    WHERE TABLE_SCHEMA = DATABASE()`);
+            } catch (e) {
+                console.error(`MariaDB view warning: ${e.message}`);
+            }
             await conn.query(`
                 CREATE FUNCTION IF NOT EXISTS vrcx_datetime_now(offset_text TEXT) RETURNS TEXT DETERMINISTIC
                 BEGIN
@@ -227,6 +236,15 @@ class MariaDBClient {
         const conn = await this.pool.getConnection();
         try {
             await conn.query("SET SESSION sql_mode = CONCAT(@@sql_mode, ',PIPES_AS_CONCAT')");
+            try {
+                await conn.query(`CREATE OR REPLACE VIEW sqlite_schema AS
+                    SELECT 'table' AS type, TABLE_NAME AS name, TABLE_NAME AS tbl_name,
+                           0 AS rootpage, NULL AS `sql`
+                    FROM information_schema.tables
+                    WHERE TABLE_SCHEMA = DATABASE()`);
+            } catch (e) {
+                console.error(`MariaDB view warning: ${e.message}`);
+            }
             const [rows] = await conn.execute(text, values);
             return (rows || []).map((row) => Object.values(row));
         } catch (e) {
@@ -244,6 +262,15 @@ class MariaDBClient {
         const conn = await this.pool.getConnection();
         try {
             await conn.query("SET SESSION sql_mode = CONCAT(@@sql_mode, ',PIPES_AS_CONCAT')");
+            try {
+                await conn.query(`CREATE OR REPLACE VIEW sqlite_schema AS
+                    SELECT 'table' AS type, TABLE_NAME AS name, TABLE_NAME AS tbl_name,
+                           0 AS rootpage, NULL AS `sql`
+                    FROM information_schema.tables
+                    WHERE TABLE_SCHEMA = DATABASE()`);
+            } catch (e) {
+                console.error(`MariaDB view warning: ${e.message}`);
+            }
             const [result] = await conn.execute(text, values);
             return Number((result && result.affectedRows) || 0);
         } catch (e) {
