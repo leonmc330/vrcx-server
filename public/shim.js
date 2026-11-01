@@ -10,6 +10,33 @@
  */
 
 (function () {
+    function reportClientError(level, message, stack) {
+        try {
+            fetch("/client-log", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ level: level, message: String(message || ""), stack: String(stack || "") }),
+            });
+        } catch (e) { /* ignore */ }
+    }
+
+    const originalConsoleError = console.error;
+    console.error = function () {
+        try {
+            reportClientError("console.error", Array.from(arguments).map(function (value) { return String(value); }).join(" "), new Error().stack);
+        } catch (e) { /* ignore */ }
+        return originalConsoleError.apply(console, arguments);
+    };
+
+    window.addEventListener("error", function (event) {
+        reportClientError("error", event.message, event.error && event.error.stack);
+    });
+
+    window.addEventListener("unhandledrejection", function (event) {
+        const reason = event.reason;
+        reportClientError("unhandledrejection", reason && reason.message ? reason.message : String(reason), reason && reason.stack);
+    });
+
     // VRCX branches on these. "LINUX" is the Electron path, which talks to the
     // backend through interopApi; the Windows path expects CefSharp bindings.
     window.LINUX = true;

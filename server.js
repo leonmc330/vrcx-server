@@ -138,6 +138,13 @@ const server = http.createServer(async (request, response) => {
             }
         }
 
+        if (route === "/client-log" && request.method === "POST") {
+            const body = await read_body(request);
+            console.error(`client ${body.level || "error"}: ${body.message || ""}\n${body.stack || ""}`);
+            response.writeHead(204);
+            return response.end();
+        }
+
         if (route === "/healthz") {
             response.writeHead(200, { "Content-Type": "text/plain" });
             return response.end("ok");
